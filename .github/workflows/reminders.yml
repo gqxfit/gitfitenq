@@ -1,0 +1,25 @@
+name: Optional external reminder trigger
+on:
+  schedule:
+    - cron: '17 * * * *'
+  workflow_dispatch:
+permissions: {}
+concurrency:
+  group: gqx-reminder-trigger
+  cancel-in-progress: false
+jobs:
+  trigger:
+    if: vars.ENABLE_EXTERNAL_CRON == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Trigger persisted notification queue
+        env:
+          APP_URL: ${{ vars.APP_URL }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        shell: bash
+        run: |
+          [[ "$APP_URL" == https://* ]] || exit 1
+          curl --fail-with-body --silent --show-error --max-time 240 \
+            --request POST --header "Authorization: Bearer $CRON_SECRET" \
+            "${APP_URL%/}/api/cron"
