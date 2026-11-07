@@ -1,0 +1,9 @@
+{
+  "name": "gqx-fit-portal",
+  "main": "cloudflare-worker.mjs",
+  "compatibility_date": "2026-11-07",
+  "workers_dev": true,
+  "triggers": {"crons": ["*/10 * * * *"]},
+  "vars": {"WHATSAPP_ENABLED": "false"},
+  "d1_databases": [{"binding":"DB","database_name":"gqx-fit-enquiries","database_id":"1ec5f498-81c5-4edf-bb8f-ebb58c08a20a"}]
+}

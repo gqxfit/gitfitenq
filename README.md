@@ -1,5 +1,7 @@
 # GQX Fit portal
 
+**Free hosting:** use [CLOUDFLARE.md](CLOUDFLARE.md). The Cloudflare Worker + D1 deployment replaces paid Render hosting for the public app. Existing Node/SQLite local operation is retained. The hosted admin uses its own generated high-entropy login key; local passwords and database files are not uploaded.
+
 **Version 2.1 UI update:** smaller public introduction, clearer service cards, a two-step enquiry form (preferences → contact details), responsive admin navigation, clickable status counters, compact expandable enquiry rows, readable notification history, and a shorter product editor with optional details collapsed. The database, existing enquiries, credentials and reminder behaviour are preserved. Refresh the browser after updating; restart the server when upgrading from the original version so new static routes are available.
 
 **Version 2:** online training, offline training, apartment training, meal boxes and GQX Fit clothing in one public portal. Start with [PUBLIC-HOSTING.md](PUBLIC-HOSTING.md) for beginner-friendly GitHub → Render instructions and [UPGRADE.md](UPGRADE.md) to restart your working local app safely.
