@@ -71,7 +71,19 @@ form.onsubmit=async e=>{
   const button=form.querySelector('button[type=submit]');button.disabled=true;$('#feedback').textContent='Saving your enquiry…';
   const values=Object.fromEntries(new FormData(form)),data={};for(const key of ['name','phone','email','service','message','website'])data[key]=values[key]||'';
   data.consent=form.consent.checked;data.details=Object.fromEntries(Object.entries(values).filter(([key])=>!['name','phone','email','service','message','website','consent'].includes(key)));
-  try{const r=await fetch('/api/enquiries',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)});const result=await r.json();if(!r.ok)throw Error(result.error);form.hidden=true;$('#success').hidden=false;$('#reference').textContent=result.id?`Reference: ${result.id}`:'';$('#success').focus();}
-  catch(e){$('#feedback').textContent=e.message||'Could not send. Please try again.';}finally{button.disabled=false;}
+  // Reserve the tab during the user gesture so mobile popup blockers allow it.
+  const whatsappTab=window.open('about:blank','_blank');
+  if(whatsappTab){whatsappTab.opener=null;whatsappTab.document.title='Saving your GQX Fit enquiry';whatsappTab.document.body.textContent='Saving your enquiry. WhatsApp will open after it is saved.';}
+  try{const r=await fetch('/api/enquiries',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)});const result=await r.json();if(!r.ok)throw Error(result.error);if(!result.id)throw Error('Could not confirm your enquiry was saved. Please try again.');
+    const lines=['GQX Fit enquiry',`Reference: ${result.id}`,`Service: ${data.service}`,`Name: ${data.name}`,`Phone: ${data.phone}`];
+    if(data.email)lines.push(`Email: ${data.email}`);
+    for(const control of form.querySelectorAll('input,select,textarea')){if(!(control.name in data.details)||!control.value)continue;const label=control.closest('label')?.childNodes[0]?.textContent?.trim()||control.name;const value=control.tagName==='SELECT'?control.selectedOptions[0]?.textContent:control.value;lines.push(`${label}: ${value}`);}
+    if($('#quote')?.textContent)lines.push($('#quote').textContent);
+    if(data.message)lines.push(`Message: ${data.message}`);
+    const whatsappUrl='https://wa.me/918122832764?text='+encodeURIComponent(lines.join('\n'));
+    $('#whatsapp-link').href=whatsappUrl;
+    if(whatsappTab)whatsappTab.location.replace(whatsappUrl);
+    form.hidden=true;$('#success').hidden=false;$('#reference').textContent=`Reference: ${result.id}`;$('#success').focus();}
+  catch(e){if(whatsappTab&&!whatsappTab.closed)whatsappTab.close();$('#feedback').textContent=e.message||'Could not send. Please try again.';}finally{button.disabled=false;}
 };
 $('#another').onclick=()=>{form.reset();form.email.required=false;form.hidden=false;$('#success').hidden=true;$('#feedback').textContent='';renderFields();showStage(0);};loadCatalog();
