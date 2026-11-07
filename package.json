@@ -1,0 +1,1 @@
+{"name":"gqx-fit-portal","version":"2.1.0","private":true,"type":"module","engines":{"node":">=24.13.0"},"scripts":{"start":"node --env-file-if-exists=.env server.mjs","test":"node --test test/*.test.mjs","hash-password":"node scripts/hash-password.mjs"}}

@@ -1,0 +1,4 @@
+# Replace with your domain. Run Caddy on the same host as Docker.
+enquiries.example.com {
+  reverse_proxy localhost:3000
+}

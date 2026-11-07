@@ -1,0 +1,31 @@
+# Optional Render Blueprint: this provisions paid hosting and a persistent disk.
+# Review Render's quoted charges before creating resources. One instance only.
+services:
+  - type: web
+    name: gqx-fit-portal
+    runtime: node
+    plan: starter
+    buildCommand: node --version
+    startCommand: node server.mjs
+    healthCheckPath: /health
+    disk:
+      name: gqx-fit-data
+      mountPath: /var/data
+      sizeGB: 1
+    envVars:
+      - key: NODE_VERSION
+        value: '24'
+      - key: NODE_ENV
+        value: production
+      - key: DB_PATH
+        value: /var/data/gqx.db
+      - key: ADMIN_PASSWORD_HASH
+        sync: false
+      - key: SESSION_SECRET
+        generateValue: true
+      - key: CRON_SECRET
+        generateValue: true
+      - key: INTERNAL_SCHEDULER
+        value: 'true'
+      - key: WHATSAPP_ENABLED
+        value: 'false'
