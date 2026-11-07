@@ -1,5 +1,6 @@
 {
   "name": "gqx-fit-portal",
+  "account_id": "74df9af086f6280657a860193282fa4b",
   "main": "cloudflare-worker.mjs",
   "compatibility_date": "2026-11-07",
   "workers_dev": true,
