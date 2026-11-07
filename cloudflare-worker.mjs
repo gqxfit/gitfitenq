@@ -4,6 +4,7 @@ import { services } from './public/schema.js';
 import { validateProduct,validateEnquiry,publicProduct } from './lib/validation.mjs';
 import { createSender } from './lib/whatsapp.mjs';
 const encoder=new TextEncoder(),DAY=86400000,ready=new WeakMap();
+function whatsappConfigured(env){return env.WHATSAPP_ENABLED==='true'&&['WHATSAPP_TOKEN','WHATSAPP_PHONE_NUMBER_ID','WHATSAPP_OWNER_NUMBER','WHATSAPP_API_VERSION','WHATSAPP_TEMPLATE_NEW','WHATSAPP_TEMPLATE_REMINDER','META_APP_SECRET','WEBHOOK_VERIFY_TOKEN'].every(k=>typeof env[k]==='string'&&env[k].length>0)&&/^v\d+\.\d+$/.test(env.WHATSAPP_API_VERSION)&&/^\d{7,15}$/.test(env.WHATSAPP_OWNER_NUMBER)&&/^\d+$/.test(env.WHATSAPP_PHONE_NUMBER_ID);}
 const hex=b=>Array.from(new Uint8Array(b),x=>x.toString(16).padStart(2,'0')).join('');
 export async function digest(s){return hex(await crypto.subtle.digest('SHA-256',encoder.encode(s)));}
 export function equal(a,b){if(typeof a!=='string'||typeof b!=='string')return false;let n=a.length^b.length;for(let i=0;i<Math.max(a.length,b.length);i++)n|=(a.charCodeAt(i)||0)^(b.charCodeAt(i)||0);return n===0;}
@@ -32,12 +33,12 @@ export class D1Store {
     if(status==='Done')statements.push(["UPDATE jobs SET state='cancelled' WHERE lead_id=? AND state IN ('pending','retry','blocked','failed','unknown')",id]);
     const result=await this.batch(statements);return !!result[0].meta.changes;
   }
-  async claim(now=Date.now()){
+  async claim(now=Date.now(),leadId=null){
     const token=crypto.randomUUID();
     // Claim and attempt log are in the same D1 transaction. Concurrent isolates
     // cannot claim the same pending job. The token also protects completion writes.
     const results=await this.batch([
-      ["UPDATE jobs SET state='sending',claim_token=?,claimed_at=?,attempts=attempts+1 WHERE id=(SELECT j.id FROM jobs j JOIN leads l ON l.id=j.lead_id WHERE j.state IN ('pending','retry') AND j.due_at<=? AND l.status!='Done' ORDER BY j.due_at,j.id LIMIT 1) RETURNING *",token,now,now],
+      ["UPDATE jobs SET state='sending',claim_token=?,claimed_at=?,attempts=attempts+1 WHERE id=(SELECT j.id FROM jobs j JOIN leads l ON l.id=j.lead_id WHERE j.state IN ('pending','retry') AND j.due_at<=? AND l.status!='Done' AND (? IS NULL OR j.lead_id=?) ORDER BY j.due_at,j.id LIMIT 1) RETURNING *",token,now,now,leadId,leadId],
       ["INSERT INTO attempts(job_id,started_at,outcome,claim_token) SELECT id,?,'sending',? FROM jobs WHERE claim_token=?",now,token,token]
     ]);
     const job=results[0].results[0];if(!job)return null;
@@ -89,9 +90,9 @@ async function getStore(env){
   if(!ready.has(env.DB))ready.set(env.DB,env.DB.batch(schema.map(sql=>env.DB.prepare(sql))).catch(e=>{ready.delete(env.DB);throw e;}));
   await ready.get(env.DB);return new D1Store(env.DB);
 }
-export async function drain(store,env,limit=1){
-  const send=createSender(env);let processed=0;
-  while(processed<limit){const job=await store.claim();if(!job)break;
+export async function drain(store,env,limit=1,leadId=null){
+  const send=whatsappConfigured(env)?createSender(env):async()=>({outcome:'blocked',errorCode:env.WHATSAPP_ENABLED==='true'?'whatsapp_configuration_missing':'whatsapp_disabled'});let processed=0;
+  while(processed<limit){const job=await store.claim(Date.now(),leadId);if(!job)break;
     // Close before claim, or before this final read, suppresses notification.
     if(job.status==='Done'){await store.batch([["UPDATE jobs SET state='cancelled' WHERE id=? AND claim_token=?",job.id,job.claim_token],["UPDATE attempts SET outcome='cancelled' WHERE claim_token=?",job.claim_token]]);continue;}
     await store.finish(job,await send(job));processed++;
@@ -127,7 +128,7 @@ export async function handle(request,env,ctx={waitUntil:()=>{}}){
     }
     if(path==='/api/cron'&&method==='POST'){
       if(!env.CRON_SECRET||!equal(request.headers.get('authorization')||'','Bearer '+env.CRON_SECRET))return response(401,{error:'Unauthorized'});
-      await store.recover(Date.now(),env.WHATSAPP_ENABLED==='true');return response(200,await drain(store,env));
+      await store.recover(Date.now(),whatsappConfigured(env));return response(200,await drain(store,env));
     }
     if(!['GET','HEAD'].includes(method)){
       if(request.headers.get('origin')!==(env.PUBLIC_URL?new URL(env.PUBLIC_URL).origin:url.origin))return response(403,{error:'Invalid origin'});
@@ -151,7 +152,7 @@ export async function handle(request,env,ctx={waitUntil:()=>{}}){
       let data;try{data=validateEnquiry(input,{get:()=>product});}catch(e){return response(400,{error:e.message});}
       const lead=await store.addLead(data);
       // Durable outbox survives a cancelled waitUntil; the cron recovers stale sends.
-      ctx.waitUntil(drain(store,env,1).catch(()=>{}));return response(201,lead);
+      ctx.waitUntil(drain(store,env,1,lead.id).catch(()=>{}));return response(201,lead);
     }
     if(path.startsWith('/api/admin/')){
       if(!await authenticated(request,env))return response(401,{error:'Please sign in'});
@@ -169,7 +170,7 @@ export async function handle(request,env,ctx={waitUntil:()=>{}}){
         const page=Math.max(0,Math.min(100000,Math.floor(Number(url.searchParams.get('page'))||0))),status=url.searchParams.get('status')||'',q=(url.searchParams.get('q')||'').slice(0,100),service=url.searchParams.get('service')||'';
         if((status&&!['New','Contacted','Done'].includes(status))||(service&&!Object.hasOwn(services,service)))return response(400,{error:'Invalid filter'});
         const where=" WHERE (?='' OR status=?) AND (?='' OR instr(lower(name||' '||phone||' '||message||' '||details_json||' '||admin_notes),lower(?))>0) AND (?='' OR service=?)",args=[status,status,q,q,service,service];
-        return response(200,{leads:await store.all('SELECT * FROM leads'+where+' ORDER BY created_at DESC LIMIT 50 OFFSET ?',...args,page*50),total:(await store.get('SELECT count(*) n FROM leads'+where,...args)).n,counts:await store.all('SELECT status,count(*) count FROM leads GROUP BY status'),whatsappEnabled:env.WHATSAPP_ENABLED==='true'});
+        return response(200,{leads:await store.all('SELECT * FROM leads'+where+' ORDER BY created_at DESC LIMIT 50 OFFSET ?',...args,page*50),total:(await store.get('SELECT count(*) n FROM leads'+where,...args)).n,counts:await store.all('SELECT status,count(*) count FROM leads GROUP BY status'),whatsappEnabled:whatsappConfigured(env)});
       }
       const match=/^\/api\/admin\/leads\/([a-f0-9-]{36})(?:\/(notes|attempts))?$/.exec(path);
       if(match&&method==='GET'&&match[2]==='attempts')return response(200,{jobs:await store.all('SELECT id,lead_id,kind,state,due_at,attempts FROM jobs WHERE lead_id=?',match[1]),attempts:await store.all('SELECT a.id,a.job_id,a.started_at,a.outcome,a.provider_id,a.http_status,a.error_code,j.kind FROM attempts a JOIN jobs j ON j.id=a.job_id WHERE j.lead_id=? ORDER BY a.id DESC',match[1]),delivery:await store.all('SELECT d.* FROM delivery_events d JOIN attempts a ON a.provider_id=d.provider_id JOIN jobs j ON j.id=a.job_id WHERE j.lead_id=? ORDER BY d.event_at DESC',match[1])});
@@ -181,4 +182,4 @@ export async function handle(request,env,ctx={waitUntil:()=>{}}){
     }return response(404,{error:'Not found'});
   }catch{return response(503,{error:'The service could not process this request. Please try again.'});}
 }
-export default {fetch:handle,async scheduled(event,env,ctx){const store=await getStore(env);await store.recover(Date.now(),env.WHATSAPP_ENABLED==='true');await drain(store,env,1);}};
+export default {fetch:handle,async scheduled(event,env,ctx){const store=await getStore(env);await store.recover(Date.now(),whatsappConfigured(env));await drain(store,env,1);}};
