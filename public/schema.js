@@ -1,15 +1,16 @@
 export const services = {
   'Online training': {tag:'01 / TRAIN ANYWHERE',description:'Personal coaching that fits your routine, wherever you train.',fields:[
-    ['goal','Your main goal','select',['Build strength','Lose fat','Improve fitness','Build muscle','General wellbeing']],
+    ['goal','Your main goal','select',['Fat loss','Strength','Beginner fitness','Specialised fitness support','Build strength','Lose fat','Improve fitness','Build muscle','General wellbeing']],
     ['experience','Training experience','select',['Beginner','Some experience','Experienced']],
-    ['trainingPlace','Where will you train?','select',['Home','Gym','Both']],
+    ['trainingPlace','Where will you train?','select',['Home','Gym','Both','Need guidance']],
     ['sessions','Preferred sessions per week','select',['2','3','4','5','6']],
     ['timeZone','Your time zone','text',null,'e.g. India / IST'],
     ['preferredTime','Preferred training time','select',['Morning','Afternoon','Evening','Flexible']]
   ]},
   'Offline training': {tag:'02 / SHOW UP STRONG',description:'Enquire about in-person coaching and find a routine that works for you.',fields:[
     ['area','Preferred training area / locality','text'],
-    ['goal','Your main goal','select',['Build strength','Lose fat','Improve fitness','Build muscle','General wellbeing']],
+    ['trainingPlace','Where would you prefer to train?','select',['Home','Gym','Need guidance'],null,false],
+    ['goal','Your main goal','select',['Fat loss','Strength','Beginner fitness','Specialised fitness support','Build strength','Lose fat','Improve fitness','Build muscle','General wellbeing']],
     ['experience','Training experience','select',['Beginner','Some experience','Experienced']],
     ['sessions','Preferred sessions per week','select',['2','3','4','5','6']],
     ['preferredTime','Preferred training time','select',['Morning','Afternoon','Evening','Flexible']]

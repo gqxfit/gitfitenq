@@ -25,6 +25,9 @@ for(const [name,info] of Object.entries(services)) {
 function choose(service,productId) {
   form.hidden=false;$('#success').hidden=true;$('#service').value=service;renderFields(productId);showStage(0);$('#enquire').scrollIntoView({behavior:'smooth'});$('#service').focus({preventScroll:true});
 }
+const trainingGoals=['Fat loss','Strength','Beginner fitness','Specialised fitness support'];
+for(const goal of trainingGoals){const button=el('button',goal,'goal-choice');button.type='button';button.onclick=()=>{choose('Online training');form.elements.goal.value=goal;};$('#training-goals').append(button);}
+$('#training-cta').onclick=e=>{e.preventDefault();choose('Online training');};
 function field(key,label,type='text',options=null,placeholder='',required=true) {
   const wrapper=el('label',label),input=el(type==='select'?'select':'input');input.name=key;input.required=required;
   if(type==='select') {const blank=el('option','Choose an option');blank.value='';input.append(blank);for(const value of options)input.append(el('option',value));}
@@ -35,7 +38,7 @@ function renderFields(productId) {
   const service=$('#service').value,info=services[service];$('#dynamic-fields').replaceChildren();$('#service-fields').hidden=!!stage||!info;$('#service-description').textContent=info?.description||'';$('#service-step').textContent=info?.tag||'GQX FIT / ENQUIRY';
   for(const button of $('#service-cards').children){const selected=button.querySelector('h3').textContent===service;button.classList.toggle('selected',selected);button.setAttribute('aria-pressed',String(selected));}
   if(!info)return;
-  for(const f of info.fields)field(...f);
+  for(const f of info.fields)field(...(f[0]==='goal'?[f[0],f[1],f[2],['Fat loss','Strength','Beginner fitness','Specialised fitness support'],...f.slice(4)]:f));
   if(service==='GQX Fit clothing') {
     const select=field('productId','Product','select',[]);
     for(const p of products.filter(p=>p.availability!=='Out of stock')) {const option=el('option',`${p.name} — ${money(p.sale_paise)}${p.availability==='Preorder'?' (preorder)':''}`);option.value=p.id;select.append(option);}
@@ -65,10 +68,11 @@ async function loadCatalog() {
     }));if($('#service').value==='GQX Fit clothing')renderFields();
   }catch{$('#catalog-feedback').textContent='Could not load the collection. Refresh to try again, or send a general enquiry using Other.';}
 }
+$('#start-training').onclick=()=>choose('Online training');
 $('#service').onchange=()=>renderFields();form.contactPreference.onchange=()=>{form.email.required=form.contactPreference.value==='Email';};
 form.onsubmit=async e=>{
   e.preventDefault();if(stage===0){next.click();return;}if(!validVisible(contactStep))return;if(form.service.value==='GQX Fit clothing'&&!form.elements.productId?.value){showStage(0);$('#feedback').textContent='Choose an available product, or use Other for general questions.';return;}
-  const button=form.querySelector('button[type=submit]');button.disabled=true;$('#feedback').textContent='Saving your enquiry…';
+  const button=form.querySelector('button[type=submit]');button.disabled=true;$('#feedback').textContent='Step 1 of 2: saving your enquiry. WhatsApp opens next…';
   const values=Object.fromEntries(new FormData(form)),data={};for(const key of ['name','phone','email','service','message','website'])data[key]=values[key]||'';
   data.consent=form.consent.checked;data.details=Object.fromEntries(Object.entries(values).filter(([key])=>!['name','phone','email','service','message','website','consent'].includes(key)));
   // Reserve the tab during the user gesture so mobile popup blockers allow it.
