@@ -27,7 +27,6 @@ function choose(service,productId) {
 }
 const trainingGoals=['Fat loss','Strength','Beginner fitness','Specialised fitness support'];
 for(const goal of trainingGoals){const button=el('button',goal,'goal-choice');button.type='button';button.onclick=()=>{choose('Online training');form.elements.goal.value=goal;};$('#training-goals').append(button);}
-$('#training-cta').onclick=e=>{e.preventDefault();choose('Online training');};
 function field(key,label,type='text',options=null,placeholder='',required=true) {
   const wrapper=el('label',label),input=el(type==='select'?'select':'input');input.name=key;input.required=required;
   if(type==='select') {const blank=el('option','Choose an option');blank.value='';input.append(blank);for(const value of options)input.append(el('option',value));}
